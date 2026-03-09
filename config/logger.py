@@ -6,11 +6,19 @@ def setup_logger(name, log_file, level=logging.INFO):
     """Function to setup as many loggers as you want"""
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     
-    handler = logging.FileHandler(log_file)        
-    handler.setFormatter(formatter)
+    log_dir = os.path.dirname(log_file)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
     logger = logging.getLogger(name)
     logger.setLevel(level)
+
+    if logger.handlers:
+        return logger
+
+    handler = logging.FileHandler(log_file)        
+    handler.setFormatter(formatter)
+
     logger.addHandler(handler)
 
     return logger

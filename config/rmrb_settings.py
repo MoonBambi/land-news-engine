@@ -23,3 +23,5 @@ RMRB_HEADERS = {
 }
 
 RMRB_SEARCH_URL = 'https://newssearch.chinadaily.com.cn/rest/cn/search'
+
+RMRB_KEYWORDS = ['宅基地改革', '土地确权', '经营权流转', '承包权', '土地流转']

@@ -24,3 +24,5 @@ AGRI_HEADERS = {
 }
 
 AGRI_BASE_URL = 'https://www.agri.cn/was5/web/search'
+
+AGRI_KEYWORDS = ['宅基地改革', '土地确权', '经营权流转', '承包权', '土地流转']
