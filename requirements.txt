@@ -1,0 +1,8 @@
+Scrapy
+Jieba
+SnowNLP
+PyMySQL
+pymongo
+requests
+pandas
+openpyxl

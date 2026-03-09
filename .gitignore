@@ -1,0 +1,9 @@
+# 忽略 venv、本地日志和数据库私密配置
+venv/
+__pycache__/
+*.log
+*.pyc
+.idea/
+.vscode/
+.env
+config/local_settings.py
