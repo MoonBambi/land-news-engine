@@ -6,3 +6,5 @@ pymongo
 requests
 pandas
 openpyxl
+tqdm
+ijson
