@@ -295,6 +295,38 @@ def create_table_if_needed(client: MySQLClient, table: str) -> None:
     client.execute(sql)
 
 
+def create_word_frequency_table_if_needed(client: MySQLClient, table: str) -> None:
+    sql = f"""
+    CREATE TABLE IF NOT EXISTS `{table}` (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        word VARCHAR(200) NOT NULL,
+        count INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4
+    """
+    client.execute(sql)
+
+
+def load_word_frequency(path: str) -> List[Dict[str, Any]]:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        return []
+    out: List[Dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        word = _as_str(item.get("word"))
+        if not word:
+            continue
+        try:
+            cnt = int(item.get("count", 0))
+        except Exception:
+            cnt = 0
+        out.append({"word": word, "count": cnt})
+    return out
+
+
 def chunked(seq: Sequence[Dict[str, Any]], size: int) -> Iterable[Sequence[Dict[str, Any]]]:
     for i in range(0, len(seq), size):
         yield seq[i : i + size]
@@ -305,12 +337,16 @@ def run() -> None:
     project_root = os.path.abspath(os.path.join(script_dir, ".."))
     default_input = os.path.join(project_root, "data", "clean")
     default_output = os.path.join(project_root, "data", "clean", "merged_llm_dedup.json")
+    default_wordfreq_path = os.path.join(project_root, "data", "stats", "word_frequency_top.json")
 
     parser = argparse.ArgumentParser(description="LLM 结果去重合并并批量写入 MySQL")
     parser.add_argument("--input", default=default_input, help="输入目录或文件（*_llm.json）")
     parser.add_argument("--output", default=default_output, help="去重合并后的输出 JSON 文件")
     parser.add_argument("--limit", type=int, default=None, help="限制处理条数（测试用）")
     parser.add_argument("--only-dedupe", action="store_true", help="只做去重合并，不入库")
+    parser.add_argument("--import-wordfreq", action="store_true", help="导入词频 JSON 到 MySQL")
+    parser.add_argument("--wordfreq-path", default=default_wordfreq_path, help="词频 JSON 文件路径")
+    parser.add_argument("--wordfreq-table", default=os.getenv("MYSQL_WORDFREQ_TABLE", "word_frequency_stats"), help="词频表名")
 
     parser.add_argument("--mysql-host", default=os.getenv("MYSQL_HOST"), help="MySQL Host")
     parser.add_argument("--mysql-port", type=int, default=int(os.getenv("MYSQL_PORT", "3306")))
@@ -323,6 +359,37 @@ def run() -> None:
     parser.add_argument("--dry-run", action="store_true", help="只打印统计信息，不写入数据库")
 
     args = parser.parse_args()
+
+    if args.import_wordfreq:
+        if not os.path.exists(args.wordfreq_path):
+            raise RuntimeError(f"词频文件不存在: {args.wordfreq_path}")
+        rows = load_word_frequency(args.wordfreq_path)
+        if args.dry_run:
+            print(f"待入库行数: {len(rows)}")
+            if rows:
+                print("示例数据:")
+                print(json.dumps(rows[0], ensure_ascii=False, indent=2))
+            return
+        if not (args.mysql_host and args.mysql_user and args.mysql_password and args.mysql_db):
+            raise RuntimeError("缺少 MySQL 连接参数：--mysql-host/--mysql-user/--mysql-password/--mysql-db")
+        client = MySQLClient(
+            host=args.mysql_host,
+            user=args.mysql_user,
+            password=args.mysql_password,
+            db=args.mysql_db,
+            port=args.mysql_port,
+        )
+        try:
+            if args.create_table:
+                create_word_frequency_table_if_needed(client, args.wordfreq_table)
+            columns = ["word", "count"]
+            inserted = 0
+            for part in chunked(rows, max(1, args.batch_size)):
+                inserted += client.insert_many(args.wordfreq_table, part, columns)
+            print(f"MySQL 入库完成: table={args.wordfreq_table} inserted={inserted}")
+        finally:
+            client.close()
+        return
 
     records, stats = merge_dedupe_llm_files(args.input, limit=args.limit)
     with JsonArrayWriter(args.output) as writer:
