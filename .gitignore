@@ -7,3 +7,10 @@ __pycache__/
 .vscode/
 .env
 config/local_settings.py
+data/
+data.zip
+*.sqlite
+*.db
+*.tmp
+*.bak
+.DS_Store
